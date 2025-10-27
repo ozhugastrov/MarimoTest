@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: marimo-controller-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: marimo-controller
+    namespace: default
+roleRef:
+  kind: Role
+  name: marimo-controller-role
+  apiGroup: rbac.authorization.k8s.io

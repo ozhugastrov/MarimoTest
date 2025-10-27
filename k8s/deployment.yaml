@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marimo-test
+  labels:
+    app: marimo-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: marimo-test
+  template:
+    metadata:
+      labels:
+        app: marimo-test
+    spec:
+      serviceAccountName: marimo-controller
+      containers:
+        - name: marimo-test
+          image: marimo-test:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
