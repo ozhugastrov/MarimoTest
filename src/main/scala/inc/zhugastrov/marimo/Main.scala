@@ -3,7 +3,7 @@ package inc.zhugastrov.marimo
 import cats.effect.*
 import com.google.inject.{Guice, Injector}
 import inc.zhugastrov.marimo.db.migration.Migrator
-import inc.zhugastrov.marimo.routs.MarimoRoute.marimoRoutes
+import inc.zhugastrov.marimo.routes.MarimoRoute.marimoRoutes
 import inc.zhugastrov.marimo.server.Server
 import org.http4s.client.websocket.WSConnection
 import org.http4s.ember.client.EmberClientBuilder

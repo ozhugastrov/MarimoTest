@@ -1,6 +1,6 @@
 build:
 	eval $$(minikube docker-env) && docker build -t marimo-test:latest .
-	#eval $$(minikube docker-env) && docker build -t marimo-local:latest marimo/.
+	$(MAKE) -C marimo build
 
 deploy:
 	kubectl apply -f k8s/

@@ -17,11 +17,12 @@ class MiniKubServiceImpl @Inject()(k8sClient: KubernetesClient) extends Kubernet
 
     val meta = new ObjectMetaBuilder().withName(serviceName(name)).build()
 
-    val port = new ServicePortBuilder().withPort(8080).withProtocol("TCP").build()
+    val port8080 = new ServicePortBuilder().withName("8080").withPort(8080).withProtocol("TCP").build()
+    val port3119 = new ServicePortBuilder().withName("3119").withPort(3119).withProtocol("TCP").build()
 
     val spec = new ServiceSpecBuilder()
       .withSelector(Map("app" -> s"marimo-$name").asJava)
-      .withPorts(port).build()
+      .withPorts(port8080, port3119).build()
 
     val namespace = "default"
 
@@ -48,9 +49,11 @@ class MiniKubServiceImpl @Inject()(k8sClient: KubernetesClient) extends Kubernet
     val meta = new ObjectMetaBuilder().withName(s"marimo-deployment-$name").build()
     val templateMeta = new ObjectMetaBuilder().addToLabels("app", s"marimo-$name").build()
 
-    val container = new ContainerBuilder().withName(s"marimo-$name").withImage("ghcr.io/marimo-team/marimo:latest-sql")
+    val container = new ContainerBuilder().withName(s"marimo-$name")
+      .withImage("marimo-local:latest")
+//      .withImage("ghcr.io/marimo-team/marimo:latest-sql")
       .withImagePullPolicy("IfNotPresent")
-      .withPorts(new ContainerPortBuilder().withContainerPort(8080).build()).build()
+      .withPorts(new ContainerPortBuilder().withContainerPort(8080).build(), new ContainerPortBuilder().withContainerPort(3119).build()).build()
 
     val podSpec = new PodSpecBuilder().withContainers(container).build()
 

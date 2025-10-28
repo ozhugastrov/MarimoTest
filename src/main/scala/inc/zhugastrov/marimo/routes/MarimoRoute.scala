@@ -1,4 +1,4 @@
-package inc.zhugastrov.marimo.routs
+package inc.zhugastrov.marimo.routes
 
 import cats.effect.{IO, Ref}
 import inc.zhugastrov.marimo.Main
@@ -14,8 +14,11 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.dsl.request.Path
 import org.http4s.server.websocket.WebSocketBuilder2
 import org.http4s.websocket.WebSocketFrame
+import org.http4s.client.websocket.WSDataFrame
+import org.typelevel.ci.CIString
 import scodec.bits.ByteVector
 
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Success, Try}
 
@@ -87,42 +90,56 @@ object MarimoRoute {
             val sessionId = req.uri.params.getOrElse("session_id", "unknown")
             val key = (user, sessionId)
 
+            println(s"BOOOOOOOOODY ${req.uri}")
+            println(s"BOOOOOOOOODY $req")
+
             val wsUri = httpUri.copy(
-              scheme = Some(Scheme.unsafeFromString("ws")), // or "wss" for secure pods
+              scheme = Some(Scheme.unsafeFromString("ws")),
               path = Uri.Path.unsafeFromString("/ws"),
               query = req.uri.query
             )
+            val headersToExclude = Set(
+              "Host",
+              "Connection",
+              "Upgrade",
+              "Sec-WebSocket-Key",
+              "Sec-WebSocket-Version",
+              "Sec-WebSocket-Extensions",
+              "Sec-WebSocket-Accept"
+            ).map(CIString(_))
+
+            val headersToForward = org.http4s.Headers(
+              req.headers.headers.filterNot(header =>
+                headersToExclude.contains(header.name)
+              )
+            )
+
+            println(s"Forwarding headers: ${headersToForward.headers.map(h => h.name.toString -> h.value)}")
 
             println(s"forward ws connection $wsUri")
-            for {
-              maybeConn <- connectionsRef.get.map(_.get(key))
-              conn <- maybeConn.fold(
-                wsClient.connect(WSRequest(wsUri)).allocated.flatMap {
-                  case (newConn, _) =>
-                    connectionsRef.update(_ + (key -> newConn)) *> IO.pure(newConn)
-                }
-              )(IO.pure)
-              resp <- wsClient.connect(WSRequest(wsUri)).allocated.flatMap {
-                case (conn, release) =>
-                  wsBuilder.build(
-                    conn.receiveStream.collect {
+            wsClient.connectHighLevel(WSRequest(wsUri, headers = headersToForward, Method.GET)).allocated.flatMap {
+              case (conn, release) =>
+                wsBuilder.build(
+                  conn.receiveStream.keepAlive(1.seconds, conn.send(WSFrame.Text("heartbeat")))
+                    .evalTap(frame => IO.println(s"PROXY <== UPSTREAM: $frame"))
+                    .collect {
                       case WSFrame.Text(msg, _) => WebSocketFrame.Text(msg)
                       case WSFrame.Binary(data, _) => WebSocketFrame.Binary(data)
-                      case WSFrame.Close(code, reason) => WebSocketFrame.Close(ByteVector.apply(Array(code.toByte).appendedAll(reason.getBytes)))
-                      case WSFrame.Ping(data) => WebSocketFrame.Ping(data)
-                      case WSFrame.Pong(data) => WebSocketFrame.Pong(data)
-                    },
-                    _.evalMap {
-                      case WebSocketFrame.Text(msg, _) => conn.send(WSFrame.Text(msg))
-                      case WebSocketFrame.Binary(data, _) => conn.send(WSFrame.Binary(data))
-                      case cl@WebSocketFrame.Close(data) => conn.send(WSFrame.Close(cl.closeCode, cl.reason))
-                      case WebSocketFrame.Ping(data) => conn.send(WSFrame.Ping(data))
-                      case WebSocketFrame.Pong(data) => conn.send(WSFrame.Pong(data))
+                    }.evalTap(frame => IO.println(s"PROXY ==> CLIENT: $frame")),
+                  _.keepAlive(1.seconds, conn.send(WSFrame.Text("heartbeat"))).evalTap(frame => IO.println(s"PROXY <== CLIENT: $frame"))
+                    .evalMap {
+                      case WebSocketFrame.Text(msg, _) =>
+                        IO.println(s"Sending text WS message $msg") >> conn.send(WSFrame.Text(msg)).handleErrorWith { e =>
+                          IO.println(s"Error sending text frame: ${e.getMessage}") >> IO.unit
+                        }
+                      case WebSocketFrame.Binary(data, _) =>
+                        IO.println(s"Sending binary WS message $data") >> conn.send(WSFrame.Binary(data)).handleErrorWith { e =>
+                          IO.println(s"Error sending binary frame: ${e.getMessage}") >> IO.unit
+                        }
                     }
-                  ).guarantee(release) // ensure the upstream connection is released when the WS closes
-              }
-            } yield resp
-          //            responseResource
+                ).guarantee(
+                  release)
+            }
 
           case None =>
             NotFound(s"Service for user '$user' not found")
