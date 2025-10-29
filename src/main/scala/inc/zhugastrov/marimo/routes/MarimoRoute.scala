@@ -141,7 +141,7 @@ object MarimoRoute {
         ).getOrElse( 
         segments.toList match {
           case user :: rest =>
-            queryProxy(req, user, rest.toVector)
+            queryProxy(req, user.decoded(), rest.toVector)
           case _ =>
             BadRequest("Missing user in path")
         }
