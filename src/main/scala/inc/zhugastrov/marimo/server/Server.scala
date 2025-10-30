@@ -20,7 +20,7 @@ object Server {
       logHeaders = true,
       logBody = r => Some(r.through(text.utf8.decode).compile.string),
       redactHeadersWhen = _ => false,
-      logAction = Some((msg: String) => Console[F].println(msg.take(100)))
+      logAction = Some((msg: String) => Console[F].println(msg.take(1000)))
     )(service(wsb)).orNotFound
 
     EmberServerBuilder

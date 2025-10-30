@@ -5,8 +5,8 @@ import cats.effect.{IO, Ref}
 import fs2.Stream
 import inc.zhugastrov.marimo.Main
 import inc.zhugastrov.marimo.k8s.KubernetesService
-import inc.zhugastrov.marimo.utils.Utils.serviceName
-import inc.zhugastrov.marimo.utils.WebSocketUtils.*
+import inc.zhugastrov.marimo.utils.Utils.{opResultToResponse, serviceName}
+import inc.zhugastrov.marimo.utils.WebSocketUtils
 import io.fabric8.kubernetes.client.{KubernetesClient, KubernetesClientBuilder}
 import org.http4s.*
 import org.http4s.Uri.Path.Segment
@@ -17,14 +17,11 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.dsl.request.Path
 import org.http4s.server.websocket.WebSocketBuilder2
 import org.http4s.websocket.WebSocketFrame
-import org.typelevel.ci.CIString
 import scodec.bits.ByteVector
-
-import scala.language.implicitConversions
-import inc.zhugastrov.marimo.utils.WebSocketUtils
 
 import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.*
+import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
 object MarimoRoute {
@@ -53,12 +50,12 @@ object MarimoRoute {
     }
 
 
-    def queryProxy(req: Request[IO], user: String, rest: Vector[Segment]) = {
+    def queryProxy(req: Request[IO], user: String, rest: Vector[Segment]): IO[Response[IO]] = {
       val relativePath = rest.mkString("/")
 
       Try(findServiceAddress(user)) match {
         case Failure(e) =>
-          IO(e.printStackTrace()) >> IO.raiseError(e)
+          InternalServerError(e.getMessage)
 
         case Success(Some(base)) =>
           val baseUri = Uri.unsafeFromString(base)
@@ -84,10 +81,13 @@ object MarimoRoute {
 
     HttpRoutes.of[IO] {
       case PUT -> Root / "notebook" / name =>
-        k8sService.createDeployment(name).flatMap(_ => Ok(s"created $name"))
+        k8sService.createDeployment(name).flatMap(opResultToResponse)
+
+      case PUT -> Root / "notebook" / name / "restart" =>
+        k8sService.restartDeployment(name).flatMap(opResultToResponse)
 
       case DELETE -> Root / "notebook" / name =>
-        k8sService.deleteDeployment(name).flatMap(_ => Ok(s"deleted $name"))
+        k8sService.deleteDeployment(name).flatMap(opResultToResponse)
 
       case req@_ -> Root / "user" / user / "ws" =>
 

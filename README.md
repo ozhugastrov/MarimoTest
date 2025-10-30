@@ -18,14 +18,18 @@ curl -X PUT 127.0.0.1:8081/api/v1/notebook/{notebookName}
 http://localhost:8081/api/v1/user/{notebookName}/
 ```
 
+#### To restart Marimo service
+```
+curl -X PUT 127.0.0.1:8081/api/v1/notebook/{notebookName}/restart
+```
+
 #### To delete Marimo service
 ```
 curl -X DELETE 127.0.0.1:8081/api/v1/notebook/{notebookName}
 ```
 
 ### TODO
-1. Db integration 
-2. Restart logic
-3. Added persistent store for notebooks
+1. Db integration
+2. Added persistent store for notebooks
 
 
