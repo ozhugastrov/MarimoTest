@@ -29,7 +29,6 @@ curl -X DELETE 127.0.0.1:8081/api/v1/notebook/{notebookName}
 ```
 
 ### TODO
-1. Db integration
-2. Added persistent store for notebooks
+1. Added persistent store for notebooks
 
 

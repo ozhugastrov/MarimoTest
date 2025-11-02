@@ -72,7 +72,6 @@ class MiniKubServiceImpl @Inject()(k8sClient: KubernetesClient) extends Kubernet
 
     val deployment = new DeploymentBuilder()
       .withMetadata(meta).withSpec(spec).build()
-    println("creating deployment")
     Try(
       k8sClient.apps().deployments().inNamespace("default").resource(deployment).create()
     )
@@ -128,4 +127,16 @@ class MiniKubServiceImpl @Inject()(k8sClient: KubernetesClient) extends Kubernet
   } >> deleteService(name)
 
 
+  override def findServiceAddress(user: String): IO[Try[Option[String]]] = IO.apply {
+    Try {
+      val name = serviceName(user)
+      val svc = k8sClient.services().inNamespace("default").withName(name).get()
+      Option(svc).flatMap { s =>
+        Option(s.getSpec.getClusterIP).map { ip =>
+          val port = s.getSpec.getPorts.asScala.headOption.map(_.getPort).getOrElse(8080)
+          s"http://$ip:$port"
+        }
+      }
+    }
+  }
 }
